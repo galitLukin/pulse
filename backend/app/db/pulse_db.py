@@ -3,40 +3,53 @@ Connection to Pulse internal Postgres database
 """
 
 import psycopg
-from contextlib import contextmanager
-from typing import Generator
+from queue import Queue, Empty
+import threading
+
 from app.config import settings
 
 logger = None  # Will be set up in utils.logging
 
+class PulseDBPool:
+    def __init__(self, connection_string: str, max_conn: int = 5):
+        self.connection_string = connection_string
+        self.max_conn = max_conn
+        self.pool = Queue(maxsize=max_conn)
+        self.lock = threading.Lock()
 
-class PulseDB:
-    """Connection manager for Pulse internal database"""
-    
-    def __init__(self, connection_string: str = None):
-        self.connection_string = connection_string or settings.PULSE_DATABASE_URL
-    
-    @contextmanager
-    def get_connection(self) -> Generator[psycopg.Connection, None, None]:
-        """Get a database connection (context manager)"""
-        conn = None
+        # Pre-create connections
+        for _ in range(max_conn):
+            self.pool.put(psycopg.connect(connection_string))
+
+    def get_connection(self, timeout: int = 5):
+        """
+        Acquire a connection from the pool
+        """
         try:
+            conn = self.pool.get(timeout=timeout)
+            return conn
+        except Empty:
+            raise RuntimeError("No database connections available")
+
+    def release_connection(self, conn):
+        """
+        Return a connection back to the pool
+        """
+        if conn.closed:
+            # Re-create connection if it was closed
             conn = psycopg.connect(self.connection_string)
-            yield conn
-            conn.commit()
-        except Exception as e:
-            if conn:
-                conn.rollback()
-            raise
-        finally:
-            if conn:
-                conn.close()
-    
-    def get_cursor(self):
-        """Get a cursor (for use with context manager)"""
-        return self.get_connection()
+        self.pool.put(conn)
+
+    def close_all(self):
+        """
+        Close all connections in the pool
+        """
+        with self.lock:
+            while not self.pool.empty():
+                conn = self.pool.get()
+                if not conn.closed:
+                    conn.close()
 
 
-# Singleton instance
-pulse_db = PulseDB()
-
+# Singleton
+pulse_db = PulseDBPool(settings.PULSE_DATABASE_URL, max_conn=3)

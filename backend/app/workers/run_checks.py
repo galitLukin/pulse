@@ -3,11 +3,15 @@ Entry point for scheduled checks
 """
 
 import logging
+import time
+
 from app.services.checker import checker_service
 from app.services.alerts import alert_service
 from app.models.core import MonitorType, CheckStatus
+from app.db.pulse_db import pulse_db  # uses the manual pool
 
 logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 
 async def run_scheduled_checks(table_id: int):
@@ -18,8 +22,6 @@ async def run_scheduled_checks(table_id: int):
     logger.info(f"Running scheduled checks for table {table_id}")
     
     # TODO: Fetch table configuration from database
-    # For now, this is a placeholder
-    
     # Example check flow:
     # 1. Get table config (connection_id, schema, table, monitor_types)
     # 2. For each monitor_type:
@@ -27,6 +29,23 @@ async def run_scheduled_checks(table_id: int):
     #    - Store result
     #    - Check if alert should be created
     #    - Create/resolve alerts as needed
-    
+
     logger.info(f"Completed checks for table {table_id}")
 
+
+def run_once():
+    logger.info("Running checks...")
+    conn = pulse_db.get_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT 1")
+            result = cur.fetchone()
+            logger.info(f"Test query result: {result}")
+    finally:
+        pulse_db.release_connection(conn)
+
+
+if __name__ == "__main__":
+    while True:
+        run_once()
+        time.sleep(60)

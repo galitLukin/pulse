@@ -5,7 +5,6 @@ Environment variables & settings
 from pydantic_settings import BaseSettings
 from typing import List, Optional
 
-
 class Settings(BaseSettings):
     """Application settings"""
     
@@ -20,10 +19,10 @@ class Settings(BaseSettings):
         "http://localhost:3000",
         "http://localhost:3001",
     ]
-    
-    # Internal Pulse Database (PostgreSQL)
-    PULSE_DATABASE_URL: str = "postgresql://pulse:pulse@localhost:5432/pulse"
-    
+
+    # Read database URL from environment
+    PULSE_DATABASE_URL: str
+
     # Security
     SECRET_KEY: str = "change-me-in-production"
     ALGORITHM: str = "HS256"
