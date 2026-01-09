@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     # API Settings
     PROJECT_NAME: str = "Pulse"
     API_PREFIX: str = "/api"
+    PULSE_ENV: str = "local"
+    PULSE_API_PORT: int = 8000
     
     # CORS
     CORS_ORIGINS: List[str] = [
