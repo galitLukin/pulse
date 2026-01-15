@@ -6,7 +6,6 @@ import logging
 import time
 
 from app.services.checker import checker_service
-from app.services.alerts import alert_service
 from app.models.core import MonitorType, CheckStatus
 from app.db.pulse_db import pulse_db  # uses the manual pool
 
@@ -27,22 +26,17 @@ async def run_scheduled_checks(table_id: int):
     # 2. For each monitor_type:
     #    - Run check
     #    - Store result
-    #    - Check if alert should be created
-    #    - Create/resolve alerts as needed
 
     logger.info(f"Completed checks for table {table_id}")
 
 
 def run_once():
     logger.info("Running checks...")
-    conn = pulse_db.get_connection()
-    try:
+    with pulse_db.connection() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT 1")
             result = cur.fetchone()
             logger.info(f"Test query result: {result}")
-    finally:
-        pulse_db.release_connection(conn)
 
 
 if __name__ == "__main__":

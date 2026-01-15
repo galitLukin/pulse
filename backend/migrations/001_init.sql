@@ -1,89 +1,78 @@
--- Initial schema for Pulse internal database
+ /**
+Initial schema for Pulse internal database
+connections
+    └── checks
+            ├── check_runs (many)
+            └── current_status (one)
+
+Not doing yet:
+Users / auth
+Alerts
+Organizations
+Multi-tenant isolation
+Credentials vault
+Aggregates
+
+To run migration: psql -h localhost -p 5432 -U pulse -d pulse -f migrations/001_init.sql
+**/
 
 -- Connections table (customer database replicas)
 CREATE TABLE connections (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    connection_string TEXT NOT NULL,
-    max_queries_per_minute INTEGER DEFAULT 60,
-    max_concurrent_queries INTEGER DEFAULT 5,
-    query_timeout_seconds INTEGER DEFAULT 2,
-    is_active BOOLEAN DEFAULT true,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    id                      UUID PRIMARY KEY,
+    connection_name         VARCHAR(255) NOT NULL,
+    db_type                 TEXT NOT NULL,          -- postgres, mysql, etc (v1: postgres)
+    host                    TEXT NOT NULL,
+    port                    INTEGER NOT NULL,
+    database_name           TEXT NOT NULL,
+
+    max_queries_per_minute  INTEGER DEFAULT 60,
+    max_concurrent_queries  INTEGER DEFAULT 5,
+    query_timeout_seconds   INTEGER DEFAULT 2,
+    is_active               BOOLEAN DEFAULT true,
+
+    created_at              TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at              TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Tables table (monitored tables)
-CREATE TABLE tables (
-    id SERIAL PRIMARY KEY,
-    connection_id INTEGER NOT NULL REFERENCES connections(id) ON DELETE CASCADE,
-    schema_name VARCHAR(255) NOT NULL,
-    table_name VARCHAR(255) NOT NULL,
-    monitor_types TEXT[] NOT NULL, -- Array of monitor types: ['freshness', 'volume', 'schema']
-    time_column VARCHAR(255), -- Required for freshness monitor
-    check_interval_minutes INTEGER DEFAULT 5,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    UNIQUE(connection_id, schema_name, table_name)
-);
-
--- Checks table (health check results)
+-- Check configurations
 CREATE TABLE checks (
-    id SERIAL PRIMARY KEY,
-    table_id INTEGER NOT NULL REFERENCES tables(id) ON DELETE CASCADE,
-    monitor_type VARCHAR(50) NOT NULL, -- 'freshness', 'volume', 'schema'
-    status VARCHAR(50) NOT NULL, -- 'success', 'failure', 'error', 'skipped'
-    result_data JSONB,
-    error_message TEXT,
-    executed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    id                  UUID PRIMARY KEY,
+    connection_id       UUID NOT NULL REFERENCES connections(id),
+
+    check_type          TEXT NOT NULL,       -- e.g. 'replica_lag'
+    config              JSONB NOT NULL,      -- thresholds, table names, etc
+
+    interval_seconds    INTEGER NOT NULL DEFAULT 60,
+    is_active           BOOLEAN NOT NULL DEFAULT true,
+
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_checks_table_id ON checks(table_id);
-CREATE INDEX idx_checks_executed_at ON checks(executed_at DESC);
+-- Check instances (append only) 
+-- alerts, charts, and summaries are derived from this
+CREATE TABLE check_runs (
+    id              UUID PRIMARY KEY,
+    check_id        UUID NOT NULL REFERENCES checks(id),
 
--- Alerts table
-CREATE TABLE alerts (
-    id SERIAL PRIMARY KEY,
-    table_id INTEGER NOT NULL REFERENCES tables(id) ON DELETE CASCADE,
-    monitor_type VARCHAR(50) NOT NULL,
-    message TEXT NOT NULL,
-    status VARCHAR(50) DEFAULT 'active', -- 'active', 'resolved', 'suppressed'
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    resolved_at TIMESTAMP WITH TIME ZONE
+    started_at      TIMESTAMPTZ NOT NULL,
+    finished_at     TIMESTAMPTZ NOT NULL,
+
+    status          TEXT NOT NULL,   -- success | warning | error
+    error_message   TEXT,
+
+    metrics         JSONB,            -- lag_seconds, row_count, etc
+
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_alerts_table_id ON alerts(table_id);
-CREATE INDEX idx_alerts_status ON alerts(status);
-CREATE INDEX idx_alerts_created_at ON alerts(created_at DESC);
+-- This is a derived table (latest state per check).
+CREATE TABLE current_status (
+    check_id        UUID PRIMARY KEY REFERENCES checks(id),
 
--- Users table (for auth - MVP)
-CREATE TABLE users (
-    id SERIAL PRIMARY KEY,
-    email VARCHAR(255) UNIQUE NOT NULL,
-    hashed_password TEXT NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    status          TEXT NOT NULL,
+    last_run_at     TIMESTAMPTZ NOT NULL,
+    last_success_at TIMESTAMPTZ,
+
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-
--- Workspaces table (for multi-tenant support)
-CREATE TABLE workspaces (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Workspace users (many-to-many)
-CREATE TABLE workspace_users (
-    workspace_id INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    PRIMARY KEY (workspace_id, user_id)
-);
-
--- Add workspace_id to connections and tables
-ALTER TABLE connections ADD COLUMN workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE;
-ALTER TABLE tables ADD COLUMN workspace_id INTEGER REFERENCES workspaces(id) ON DELETE CASCADE;
-
-CREATE INDEX idx_connections_workspace_id ON connections(workspace_id);
-CREATE INDEX idx_tables_workspace_id ON tables(workspace_id);
-

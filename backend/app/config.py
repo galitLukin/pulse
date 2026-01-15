@@ -22,16 +22,10 @@ class Settings(BaseSettings):
 
     # Read database URL from environment
     PULSE_DATABASE_URL: str
-
-    # Security
-    SECRET_KEY: str = "change-me-in-production"
-    ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours
     
     # Monitoring Settings
     DEFAULT_CHECK_INTERVAL_MINUTES: int = 5
     MIN_CHECK_INTERVAL_MINUTES: int = 1
-    ALERT_THRESHOLD_FAILURES: int = 2  # Require 2-3 consecutive failures
     
     # Safety Guardrails (per customer/connection)
     MAX_QUERIES_PER_MINUTE: int = 60

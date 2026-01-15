@@ -6,7 +6,6 @@ import logging
 from datetime import datetime
 from typing import Dict, Any, Optional
 from app.db.replica_db import replica_db_manager
-from app.db.queries import SafeQueries
 from app.models.core import MonitorType, CheckStatus
 from app.services.safety import SafetyGuardrails
 from app.services.baselines import BaselineService
@@ -19,7 +18,6 @@ class CheckerService:
     
     def __init__(self):
         self.baseline_service = BaselineService()
-        self.queries = SafeQueries()
     
     async def run_check(
         self,

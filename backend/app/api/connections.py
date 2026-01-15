@@ -8,17 +8,17 @@ from app.models.api import ConnectionCreate, ConnectionResponse
 from app.db.replica_db import replica_db_manager
 from app.services.safety import SafetyGuardrails
 
+from app.db.queries.connections import list_connections
+
 router = APIRouter()
 
 
 @router.get("", response_model=List[ConnectionResponse])
-async def list_connections():
+def get_connections():
     """
     Get list of all database connections
-    TODO: Fetch from database
     """
-    # Placeholder - will be replaced with DB query
-    return []
+    return list_connections()
 
 
 @router.get("/{connection_id}", response_model=ConnectionResponse)

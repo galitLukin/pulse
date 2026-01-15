@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.api import health, tables, connections, alerts
+from app.api import health, checks, connections
 from app.startup import on_startup, on_shutdown
 
 app = FastAPI(
@@ -26,9 +26,8 @@ app.add_middleware(
 
 # Include API routes
 app.include_router(health.router, prefix=settings.API_PREFIX, tags=["health"])
-app.include_router(tables.router, prefix=f"{settings.API_PREFIX}/tables", tags=["tables"])
 app.include_router(connections.router, prefix=f"{settings.API_PREFIX}/connections", tags=["connections"])
-app.include_router(alerts.router, prefix=f"{settings.API_PREFIX}/alerts", tags=["alerts"])
+app.include_router(checks.router, prefix=f"{settings.API_PREFIX}/checks", tags=["checks"])
 
 
 @app.on_event("startup")

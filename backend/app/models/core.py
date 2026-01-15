@@ -1,5 +1,5 @@
 """
-Internal DB models (tables, checks, alerts)
+Internal DB models (tables, checks)
 These represent the schema of Pulse's internal database
 """
 
@@ -21,13 +21,6 @@ class CheckStatus(str, Enum):
     FAILURE = "failure"
     ERROR = "error"
     SKIPPED = "skipped"
-
-
-class AlertStatus(str, Enum):
-    """Status of an alert"""
-    ACTIVE = "active"
-    RESOLVED = "resolved"
-    SUPPRESSED = "suppressed"
 
 
 # These are conceptual models - actual DB schema will be in migrations
@@ -100,25 +93,4 @@ class Check:
         self.result_data = result_data or {}
         self.error_message = error_message
         self.executed_at = executed_at or datetime.utcnow()
-
-
-class Alert:
-    """An alert for a data health issue"""
-    def __init__(
-        self,
-        id: int,
-        table_id: int,
-        monitor_type: MonitorType,
-        message: str,
-        status: AlertStatus = AlertStatus.ACTIVE,
-        created_at: Optional[datetime] = None,
-        resolved_at: Optional[datetime] = None
-    ):
-        self.id = id
-        self.table_id = table_id
-        self.monitor_type = monitor_type
-        self.message = message
-        self.status = status
-        self.created_at = created_at or datetime.utcnow()
-        self.resolved_at = resolved_at
 
